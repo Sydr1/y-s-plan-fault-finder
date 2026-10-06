@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<title>Y/S Plan Fault Finder</title>
+<meta name="description" content="Step-by-step wiring fault diagnosis for Y plan and S plan domestic heating controls.">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Y/S Plan">
+<meta name="theme-color" content="#14171d">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-inner">
+    <h1 class="app-title">🔧 Y/S Plan Fault Finder</h1>
+    <button id="theme-toggle" class="icon-btn" aria-label="Toggle dark mode" title="Toggle dark/light">🌓</button>
+  </div>
+</header>
+
+<main id="main">
+  <p class="sub">Step-by-step diagnosis for UK domestic heating controls — mid-position (Y plan) and 2-port zone valve (S plan) systems.</p>
+
+  <div class="safety-banner">
+    <strong>Safety first:</strong> isolate before touching wiring. Prove dead with an approved two-pole tester (GS38) and proving unit. Live tests only where unavoidable. Gas-side or boiler internals = Gas Safe engineer. Always follow the manufacturer's wiring diagram — wire colours and terminals vary by make.
+  </div>
+
+  <!-- FAULT FINDER TAB -->
+  <section id="tab-finder" class="tab-panel" data-tab="finder">
+    <div id="stage"></div>
+  </section>
+
+  <!-- WIRING REFERENCE TAB -->
+  <section id="tab-wiring" class="tab-panel" data-tab="wiring" hidden>
+    <h2 class="section-title">Wiring reference</h2>
+    <div id="wiring-content"></div>
+  </section>
+
+  <!-- TEST TIPS TAB -->
+  <section id="tab-tips" class="tab-panel" data-tab="tips" hidden>
+    <h2 class="section-title">Test tips</h2>
+    <div id="tips-content"></div>
+  </section>
+
+  <!-- NOTES TAB -->
+  <section id="tab-notes" class="tab-panel" data-tab="notes" hidden>
+    <h2 class="section-title">Job notes</h2>
+    <form id="note-form" class="note-form">
+      <input id="note-job" type="text" placeholder="Job / address (optional)" autocomplete="off">
+      <textarea id="note-text" placeholder="Note..." rows="3" required></textarea>
+      <button type="submit" class="btn btn-primary">Save note</button>
+    </form>
+    <div class="notes-actions">
+      <button id="notes-export" class="btn btn-secondary">Export all</button>
+      <button id="notes-copy-all" class="btn btn-secondary">Copy all</button>
+    </div>
+    <ul id="notes-list" class="notes-list" role="list"></ul>
+    <div id="notes-empty" class="empty-state" hidden><p>No notes yet.</p></div>
+  </section>
+</main>
+
+<nav class="tabbar" id="tabbar">
+  <button class="tab-btn active" data-tab="finder" aria-label="Fault finder"><span class="tab-icon">🧭</span><span>Finder</span></button>
+  <button class="tab-btn" data-tab="wiring" aria-label="Wiring reference"><span class="tab-icon">🔌</span><span>Wiring</span></button>
+  <button class="tab-btn" data-tab="tips" aria-label="Test tips"><span class="tab-icon">💡</span><span>Tips</span></button>
+  <button class="tab-btn" data-tab="notes" aria-label="Notes"><span class="tab-icon">📝</span><span>Notes</span></button>
+</nav>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="js/tree-data.js"></script>
+<script src="js/reference-data.js"></script>
+<script src="js/notes.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
