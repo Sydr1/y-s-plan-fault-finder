@@ -8,10 +8,13 @@ const vm = require("vm");
 
 const sandbox = {};
 vm.createContext(sandbox);
-const src = fs.readFileSync(path.join(__dirname, "..", "js", "tree-data.js"), "utf8");
-const { TREE, RESULTS } = vm.runInContext(src + "\n({ TREE, RESULTS })", sandbox);
+const treeSrc = fs.readFileSync(path.join(__dirname, "..", "js", "tree-data.js"), "utf8");
+const { TREE, RESULTS } = vm.runInContext(treeSrc + "\n({ TREE, RESULTS })", sandbox);
+const quickSrc = fs.readFileSync(path.join(__dirname, "..", "js", "quick-data.js"), "utf8");
+const { QUICK_CHECKS, TRIAGE_SUMMARIES } = vm.runInContext(quickSrc + "\n({ QUICK_CHECKS, TRIAGE_SUMMARIES })", sandbox);
 
 const SEVERITIES = ["ok", "warn", "danger"];
+const FREQUENCIES = ["common", "occasional", "rare"];
 let failures = 0;
 function fail(msg) { failures++; console.error("  FAIL: " + msg); }
 
@@ -22,13 +25,37 @@ function resolve(id, plan) {
 
 console.log("Checking RESULTS entries...");
 Object.entries(RESULTS).forEach(([id, r]) => {
-  if (!Array.isArray(r) || r.length !== 3) { fail(`result "${id}": expected [severity, title, body]`); return; }
-  const [sev, title, body] = r;
+  if (!Array.isArray(r) || r.length !== 4) { fail(`result "${id}": expected [severity, title, body, frequency]`); return; }
+  const [sev, title, body, freq] = r;
   if (!SEVERITIES.includes(sev)) fail(`result "${id}": severity "${sev}" not one of ${SEVERITIES.join("/")}`);
   if (!title || typeof title !== "string") fail(`result "${id}": missing title`);
   if (!body || typeof body !== "string") fail(`result "${id}": missing body`);
+  if (!FREQUENCIES.includes(freq)) fail(`result "${id}": frequency "${freq}" not one of ${FREQUENCIES.join("/")}`);
 });
 console.log(`  ${Object.keys(RESULTS).length} results checked`);
+
+console.log("Checking QUICK_CHECKS...");
+if (!Array.isArray(QUICK_CHECKS) || QUICK_CHECKS.length === 0) fail("QUICK_CHECKS must be a non-empty array");
+else QUICK_CHECKS.forEach((c, i) => {
+  ["label", "why", "ifFail"].forEach((f) => {
+    if (!c[f] || typeof c[f] !== "string") fail(`QUICK_CHECKS[${i}]: missing "${f}"`);
+  });
+});
+console.log(`  ${(QUICK_CHECKS || []).length} quick checks checked`);
+
+console.log("Checking TRIAGE_SUMMARIES reference real results...");
+let triageItemsChecked = 0;
+Object.entries(TRIAGE_SUMMARIES || {}).forEach(([nodeId, summary]) => {
+  if (!TREE[nodeId]) fail(`TRIAGE_SUMMARIES["${nodeId}"]: no such TREE node`);
+  if (!summary.intro || typeof summary.intro !== "string") fail(`TRIAGE_SUMMARIES["${nodeId}"]: missing intro`);
+  if (!Array.isArray(summary.items) || summary.items.length === 0) { fail(`TRIAGE_SUMMARIES["${nodeId}"]: items must be a non-empty array`); return; }
+  summary.items.forEach((item, i) => {
+    triageItemsChecked++;
+    if (!RESULTS[item.result]) fail(`TRIAGE_SUMMARIES["${nodeId}"].items[${i}]: result "${item.result}" is not a known result`);
+    if (!item.note || typeof item.note !== "string") fail(`TRIAGE_SUMMARIES["${nodeId}"].items[${i}]: missing note`);
+  });
+});
+console.log(`  ${Object.keys(TRIAGE_SUMMARIES || {}).length} triage summaries, ${triageItemsChecked} items checked`);
 
 console.log("Checking TREE node options resolve (for both plans)...");
 let optionsChecked = 0;

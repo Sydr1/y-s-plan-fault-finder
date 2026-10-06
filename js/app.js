@@ -4,7 +4,7 @@
   const $ = (sel, root) => (root || document).querySelector(sel);
   const $$ = (sel, root) => Array.from((root || document).querySelectorAll(sel));
 
-  let st = { plan: null, hist: [] };
+  let st = { screen: "quick", plan: null, hist: [], triageShown: new Set(), quickChecked: new Set() };
 
   function showToast(msg) {
     const el = $("#toast");
@@ -50,6 +50,50 @@
     });
   }
 
+  // ---------- Quick checks (stage 0, before the tree) ----------
+  const FREQ_LABEL = { common: "Most likely", occasional: "Sometimes", rare: "Less common" };
+
+  function renderQuickChecks() {
+    const stage = $("#stage");
+    const checkedCount = st.quickChecked.size;
+    stage.innerHTML = `
+      <div class="card">
+        <div class="crumb">Before the valve diagnosis</div>
+        <p class="q">Quick checks</p>
+        <div class="h">These resolve a large share of "no heat" calls on their own. Tick off what you've confirmed — ${checkedCount}/${QUICK_CHECKS.length} done.</div>
+        <ul class="qc-list">
+          ${QUICK_CHECKS.map((c, i) => `
+            <li class="qc-item ${st.quickChecked.has(i) ? "done" : ""}">
+              <button class="qc-row" data-i="${i}">
+                <span class="qc-box">${st.quickChecked.has(i) ? "✓" : ""}</span>
+                <span class="qc-body">
+                  <span class="qc-label">${escapeHtml(c.label)}</span>
+                  <span class="qc-why">${escapeHtml(c.why)}</span>
+                  <span class="qc-iffail"><b>If this fails:</b> ${escapeHtml(c.ifFail)}</span>
+                </span>
+              </button>
+            </li>
+          `).join("")}
+        </ul>
+      </div>
+      <button class="btn btn-primary" id="qc-continue">Continue to system &amp; valve diagnosis →</button>
+    `;
+    $$(".qc-row", stage).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const i = Number(btn.dataset.i);
+        if (st.quickChecked.has(i)) st.quickChecked.delete(i); else st.quickChecked.add(i);
+        renderQuickChecks();
+      });
+    });
+    $("#qc-continue").addEventListener("click", () => {
+      st.screen = "tree";
+      st.plan = null;
+      st.hist = ["start"];
+      renderTree();
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   // ---------- Decision tree ----------
   function resolveId(id) {
     if (id && id.endsWith("*")) return id.slice(0, -1) + st.plan;
@@ -65,10 +109,57 @@
   }
   function goBack() {
     if (st.hist.length > 1) { st.hist.pop(); renderTree(); }
+    else { st.screen = "quick"; renderQuickChecks(); }
   }
   function restartTree() {
-    st = { plan: null, hist: ["start"] };
-    renderTree();
+    st.screen = "quick";
+    st.plan = null;
+    st.hist = [];
+    st.triageShown = new Set();
+    renderQuickChecks();
+  }
+
+  function freqBadge(freq) {
+    if (!freq || !FREQ_LABEL[freq]) return "";
+    return `<span class="badge b-freq-${freq}">${FREQ_LABEL[freq]}</span>`;
+  }
+
+  function renderTriageSummary(id, planLabel) {
+    const stage = $("#stage");
+    const summary = TRIAGE_SUMMARIES[id];
+    stage.innerHTML = `
+      <div class="card">
+        <div class="crumb">${escapeHtml(planLabel)} · Likely causes</div>
+        <p class="q">Before the step-by-step — here's what it's probably not, and probably is</p>
+        <div class="h">${escapeHtml(summary.intro)}</div>
+        <ul class="triage-list">
+          ${summary.items.map((item) => {
+            const r = RESULTS[item.result];
+            return `
+              <li class="triage-item ${item.safety ? "safety" : ""}">
+                <div class="triage-head">
+                  <span class="triage-title">${escapeHtml(r[1])}</span>
+                  ${freqBadge(r[3])}
+                </div>
+                <div class="triage-note">${escapeHtml(item.note)}</div>
+              </li>
+            `;
+          }).join("")}
+        </ul>
+      </div>
+      <button class="btn btn-primary" id="triage-start">Start step-by-step →</button>
+      <div class="nav-row">
+        <button id="tree-back">← Back</button>
+        <button id="tree-restart">Start over</button>
+      </div>
+    `;
+    $("#triage-start").addEventListener("click", () => {
+      st.triageShown.add(id);
+      renderTree();
+    });
+    $("#tree-back").addEventListener("click", goBack);
+    $("#tree-restart").addEventListener("click", restartTree);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function renderTree() {
@@ -76,14 +167,20 @@
     const stage = $("#stage");
     const planLabel = st.plan ? (st.plan === "y" ? "Y plan" : "S plan") : "System not set";
 
+    if (TRIAGE_SUMMARIES[id] && !st.triageShown.has(id)) {
+      renderTriageSummary(id, planLabel);
+      return;
+    }
+
     if (RESULTS[id]) {
-      const [sev, title, body] = RESULTS[id];
+      const [sev, title, body, freq] = RESULTS[id];
       const badgeClass = "b-" + sev;
       const badgeLabel = sev === "ok" ? "Likely cause" : sev === "warn" ? "Check this" : "Fault found";
       stage.innerHTML = `
         <div class="card r">
           <div class="crumb">${escapeHtml(planLabel)} · Result</div>
           <span class="badge ${badgeClass}">${badgeLabel}</span>
+          ${freqBadge(freq)}
           <p class="result-title">${escapeHtml(title)}</p>
           <p>${body}</p>
         </div>
@@ -114,13 +211,12 @@
         ${node.o.map((o, i) => `<button class="opt" data-i="${i}">${escapeHtml(o[0])}</button>`).join("")}
       </div>
       <div class="nav-row">
-        ${st.hist.length > 1 ? '<button id="tree-back">← Back</button><button id="tree-restart">Start over</button>' : ""}
+        <button id="tree-back">← Back</button>
+        <button id="tree-restart">Start over</button>
       </div>
     `;
-    if (st.hist.length > 1) {
-      $("#tree-back").addEventListener("click", goBack);
-      $("#tree-restart").addEventListener("click", restartTree);
-    }
+    $("#tree-back").addEventListener("click", goBack);
+    $("#tree-restart").addEventListener("click", restartTree);
     $$(".opt", stage).forEach((btn) => {
       btn.addEventListener("click", () => {
         const o = node.o[Number(btn.dataset.i)];
